@@ -1,0 +1,94 @@
+{
+  "entities": {
+    "Record": {
+      "title": "Registration Record",
+      "description": "Information about a phone number's status in the system",
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "string",
+          "description": "The phone number verified"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["clear", "flagged"],
+          "description": "Status of the number"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Fake Leader", "Fake Lead", "Attacker", "Bad Behavior", "Deleted Member", "Other", "None"],
+          "description": "Category tag of the problem"
+        },
+        "note": {
+          "type": "string",
+          "description": "Detailed explanation regarding the number status"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Firebase Auth UID of the creator admin"
+        },
+        "createdByEmail": {
+          "type": "string",
+          "description": "Email address of the creator admin"
+        }
+      },
+      "required": ["number", "status", "note", "updatedAt"]
+    },
+    "RegistrationCount": {
+      "title": "Registration Count Record",
+      "description": "Tracks how many times a phone number has been saved or registered",
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "string",
+          "description": "The phone number"
+        },
+        "count": {
+          "type": "integer",
+          "description": "Number of times registered"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last registration timestamp"
+        }
+      },
+      "required": ["number", "count"]
+    },
+    "AdminSettings": {
+      "title": "Admin Settings",
+      "description": "Global settings for the admin panel including PIN authentication and safe list emails",
+      "type": "object",
+      "properties": {
+        "pin": {
+          "type": "string",
+          "description": "Security access PIN password for admin mode (starts at 4012)"
+        },
+        "allowedEmails": {
+          "type": "array",
+          "description": "List of Gmail addresses allowed admin dashboard access"
+        }
+      },
+      "required": ["pin", "allowedEmails"]
+    }
+  },
+  "firestore": {
+    "/records/{recordId}": {
+      "schema": "Record",
+      "description": "Directory of checked and/or flagged phone numbers"
+    },
+    "/registration_counts/{numberId}": {
+      "schema": "RegistrationCount",
+      "description": "Directory of registration counters for phone queries"
+    },
+    "/settings/{settingId}": {
+      "schema": "AdminSettings",
+      "description": "Global system configurations including PIN and Gmail administrators"
+    }
+  }
+}

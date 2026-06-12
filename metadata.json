@@ -1,0 +1,6 @@
+{
+  "name": "Unity Earning",
+  "description": "Mobile number verification system for Unity Earning E-learning Platform to screen for flagged or clear numbers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
