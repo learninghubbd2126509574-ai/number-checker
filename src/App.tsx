@@ -756,15 +756,17 @@ export default function App() {
           {/* HEADER (Now inside scrollable area) */}
           <div className="header">
             <div className="header-logo">
-              <div className="logo-icon select-none text-white">🛡</div>
-              <span className="logo-text font-sans">UNITY EARNING</span>
+              <div className="logo-icon select-none">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              <span className="logo-text font-sans tracking-[4px]">UNITY EARNING</span>
             </div>
-            <h1 className="font-sans">Unity Earning E-learning Platform</h1>
-            <div className="subtitle font-sans font-medium">NUMBER CHECKING SYSTEM</div>
-            <div className="bn-subtitle font-sans font-medium">নম্বর যাচাইকরণ পদ্ধতি</div>
+            <h1 className="font-sans tracking-tight leading-tight">Unity Earning E-learning Platform</h1>
+            <div className="subtitle font-sans font-medium mt-1">NUMBER CHECKING SYSTEM</div>
+            <div className="bn-subtitle font-sans font-medium mt-2">নম্বর যাচাইকরণ পদ্ধতি</div>
             
             {/* Help Button (Repositioned to flow below text) */}
-            <div className="mt-4 flex justify-center">
+            <div className="mt-8 flex justify-center">
               <button
                 onClick={() => {
                   if (settings.helpVideoUrl) {
@@ -773,10 +775,11 @@ export default function App() {
                     showToast('হেল্প ভিডিও এখনো যুক্ত করা হয়নি।', 'error');
                   }
                 }}
-                className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[10.5px] font-black px-4 py-2 rounded-full shadow-help-glow animate-soft-pulse border border-rose-400 transition-all active:scale-95 z-10"
+                className="group relative flex items-center gap-2.5 text-white text-[11px] font-black px-6 py-2.5 rounded-full animate-rainbow-bg border transition-all active:scale-95 z-10"
               >
-                <div className="w-2 h-2 bg-white rounded-full"></div>
-                সাহায্য (Help)
+                <div className="absolute inset-0 rounded-full animate-soft-pulse pointer-events-none opacity-50 ring-2 ring-white/20"></div>
+                <span className="relative w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)] group-hover:scale-110 transition-transform"></span>
+                <span className="relative tracking-wide">সাহায্য (Help)</span>
               </button>
             </div>
           </div>
@@ -1001,7 +1004,10 @@ export default function App() {
 
               {/* STATUS DETAILS CARD STYLE MATCHING THE HTML */}
               <div className="status-card">
-                <div className="status-card-title font-sans">⚠️ রঙের অর্থ ও নির্দেশিকা / STATUS DETAILS</div>
+                <div className="status-card-title font-sans">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  রঙের অর্থ ও নির্দেশিকা / STATUS DETAILS
+                </div>
 
                 <div className="status-item red-item">
                   <div className="status-item-header">
