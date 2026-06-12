@@ -725,35 +725,7 @@ export default function App() {
       {/* Main centered mobile responsive web layout card wrapper */}
       <div id="main_app_layout" className="w-full max-w-[430px] h-screen md:h-[840px] bg-[#f8fafc] md:border md:border-slate-200 md:rounded-[24px] md:shadow-[0_20px_50px_rgba(15,23,42,0.15)] overflow-hidden flex flex-col relative">
 
-        {/* HEADER */}
-        <div className="header shrink-0">
-          <div className="header-logo">
-            <div className="logo-icon select-none text-white">🛡</div>
-            <span className="logo-text font-sans">UNITY EARNING</span>
-          </div>
-          <h1 className="font-sans">Unity Earning E-learning Platform</h1>
-          <div className="subtitle font-sans font-medium">NUMBER CHECKING SYSTEM</div>
-          <div className="bn-subtitle font-sans font-medium">নম্বর যাচাইকরণ পদ্ধতি</div>
-          
-          {/* Help Button */}
-          <div className="absolute right-4 top-[132px] md:top-[148px] z-10 transition-all">
-            <button
-              onClick={() => {
-                if (settings.helpVideoUrl) {
-                  window.open(settings.helpVideoUrl, '_blank');
-                } else {
-                  showToast('হেল্প ভিডিও এখনো যুক্ত করা হয়নি।', 'error');
-                }
-              }}
-              className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black px-3 py-1.8 rounded-full shadow-help-glow animate-soft-pulse border border-rose-400 transition-all active:scale-95"
-            >
-              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-              সাহায্য (Help)
-            </button>
-          </div>
-        </div>
-
-        {/* Dynamic header option when logged in as admin to keep logout visible */}
+        {/* Dynamic header option when logged in as admin to keep logout visible (Persistent at top) */}
         {!isOnline && (
           <div className="bg-amber-100 border-b border-amber-200 px-4 py-1.5 flex justify-center items-center z-20 shrink-0">
             <span className="text-[10px] text-amber-800 font-bold font-sans flex items-center gap-1">
@@ -762,7 +734,7 @@ export default function App() {
           </div>
         )}
         {activeNavTab === 'admin' && isAdminActive && (
-          <div className="bg-[#0a0f1d] border-b border-slate-800/80 px-4 py-2 flex justify-between items-center z-10 shrink-0">
+          <div className="bg-[#0a0f1d] border-b border-slate-800/80 px-4 py-2 flex justify-between items-center z-20 shrink-0">
             <div className="flex items-center gap-1.5 overflow-hidden">
               <span className={`w-2 h-2 rounded-full shrink-0 ${isOnline ? 'bg-[#10b981] animate-pulse' : 'bg-slate-400'}`}></span>
               <span className={`text-[11px] font-extrabold font-sans truncate ${isOnline ? 'text-[#10b981]' : 'text-slate-400'}`}>
@@ -778,9 +750,40 @@ export default function App() {
           </div>
         )}
 
-        {/* Phone Scrolling Content View Area */}
+        {/* Scrollable Main Container (Header + Content) */}
         <div className="flex-1 overflow-y-auto no-scrollbar bg-slate-50 relative">
-          {activeNavTab === 'search' ? (
+          
+          {/* HEADER (Now inside scrollable area) */}
+          <div className="header">
+            <div className="header-logo">
+              <div className="logo-icon select-none text-white">🛡</div>
+              <span className="logo-text font-sans">UNITY EARNING</span>
+            </div>
+            <h1 className="font-sans">Unity Earning E-learning Platform</h1>
+            <div className="subtitle font-sans font-medium">NUMBER CHECKING SYSTEM</div>
+            <div className="bn-subtitle font-sans font-medium">নম্বর যাচাইকরণ পদ্ধতি</div>
+            
+            {/* Help Button (Repositioned to flow below text) */}
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => {
+                  if (settings.helpVideoUrl) {
+                    window.open(settings.helpVideoUrl, '_blank');
+                  } else {
+                    showToast('হেল্প ভিডিও এখনো যুক্ত করা হয়নি।', 'error');
+                  }
+                }}
+                className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[10.5px] font-black px-4 py-2 rounded-full shadow-help-glow animate-soft-pulse border border-rose-400 transition-all active:scale-95 z-10"
+              >
+                <div className="w-2 h-2 bg-white rounded-full"></div>
+                সাহায্য (Help)
+              </button>
+            </div>
+          </div>
+
+          {/* MAIN PAGE CONTENT */}
+          <div className="relative">
+            {activeNavTab === 'search' ? (
             
             // 👤 USER SEARCH SIDE VIEW WITH NEW LAYOUT STYLES
             <div className="p-3.5 space-y-4">
@@ -1656,6 +1659,7 @@ export default function App() {
 
             </div>
           )}
+          </div>
         </div>
 
         {/* Beautiful Bottom Simulated System Dock Navigation Bars */}
