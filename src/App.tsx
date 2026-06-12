@@ -880,7 +880,7 @@ export default function App() {
                         <div className="result-danger-body">
                           <div className="bg-rose-600 text-white p-3 rounded-xl mb-3 text-center animate-pulse border-2 border-rose-400 shadow-lg">
                             <p className="text-[13px] font-black font-sans leading-tight">
-                              ⚠️ সতর্কবার্তা: এই নম্বর রেজিস্ট্রেশন করলে আপনাদের আইডি ব্লক হতে পারে!
+                              ⚠️ সতর্কবার্তা: এই নম্বর রেজিস্ট্রেশন করলে আপনার আইডি কোম্পানি ব্লক করে দিবে।
                             </p>
                           </div>
                           <div className="result-danger-msg border border-red-200 shadow-sm rounded-lg p-3 space-y-1.5">
