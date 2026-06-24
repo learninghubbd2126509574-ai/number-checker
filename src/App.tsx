@@ -156,13 +156,22 @@ export default function App() {
 
   // Helper: Normalize Bangladeshi phone number formats beautifully
   const normalizePhone = (num: string): string => {
-    let cleaned = num.replace(/[^0-9]/g, ''); // keep only digits
-    if (cleaned.startsWith('880')) {
-      cleaned = cleaned.slice(2); // trim off prefix '88'
-    } else if (cleaned.startsWith('88')) {
+    // Keep only digits
+    let cleaned = num.replace(/[^0-9]/g, ''); 
+    
+    // Handle 00880... (International prefix)
+    if (cleaned.startsWith('00880') && cleaned.length > 5) {
+      cleaned = cleaned.slice(4); // trim off prefix '0088', keeping '0...'
+    }
+    // 8801XXXXXXXXX -> 01XXXXXXXXX (BD Format)
+    else if (cleaned.startsWith('880') && cleaned.length > 3) {
+      cleaned = cleaned.slice(2); // trim off prefix '88', keeping '0...'
+    } 
+    // 881XXXXXXXXX -> 1XXXXXXXXX
+    else if (cleaned.startsWith('88') && cleaned.length > 2) {
        cleaned = cleaned.slice(2);
     }
-    // Ensure it always yields full digits in local context
+    
     return cleaned;
   };
 
@@ -561,7 +570,7 @@ export default function App() {
     }
 
     const finalRecordPayload = {
-      number: formPhone.trim(),
+      number: normalizedNo,
       status: formStatus,
       category: formStatus === 'flagged' ? formCategory : 'None',
       note: formNote.trim(),
@@ -807,10 +816,10 @@ export default function App() {
                       type="tel"
                       className="phone-input font-sans font-bold"
                       placeholder="ফোন নম্বরটি লিখুন... (যেমন: 017XXXXXXXX)"
-                      maxLength={15}
+                      maxLength={20}
                       value={searchPhone}
                       onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        const val = normalizePhone(e.target.value);
                         setSearchPhone(val);
                         if (val === '') {
                           setSearchResult(null);
@@ -1318,7 +1327,7 @@ export default function App() {
                             className="w-full bg-[#f8fafc] text-slate-800 placeholder-slate-400 text-xs py-3 px-4 rounded-xl border border-slate-200 outline-none focus:border-blue-500 focus:bg-white transition-all font-sans font-medium"
                             placeholder="e.g. 01712345678"
                             value={formPhone}
-                            onChange={(e) => setFormPhone(e.target.value)}
+                            onChange={(e) => setFormPhone(normalizePhone(e.target.value))}
                           />
                         </div>
 
