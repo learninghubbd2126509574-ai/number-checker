@@ -43,47 +43,64 @@ service cloud.firestore {
              data.allowedEmails is list && data.allowedEmails.size() <= 100;
     }
 
+    // Search Log Validation - Simplified for robustness
+    function isValidSearchLog(data) {
+      return data.number is string && 
+             data.ip is string && 
+             data.date is string && 
+             data.time is string;
+    }
+
     // Rules for records collection
     match /records/{recordId} {
       // Anyone can verify a single phone number via get
-      allow get: if isValidId(recordId);
+      allow get: if true;
       
       // Signed-in users (Google admins or PIN anonymous admins) can manage database records
       allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(recordId) && isValidRecord(incoming());
-      allow update: if isSignedIn() && isValidId(recordId) && isValidRecord(incoming());
-      allow delete: if isSignedIn() && isValidId(recordId);
+      allow create: if isSignedIn() && isValidRecord(incoming());
+      allow update: if isSignedIn() && isValidRecord(incoming());
+      allow delete: if isSignedIn();
     }
 
     // Rules for registration_counts collection
     match /registration_counts/{numberId} {
       // Anyone can load single dynamic counts
-      allow get: if isValidId(numberId);
+      allow get: if true;
       
       // Signed-in users can view all list counts
       allow list: if isSignedIn();
       
       // Anyone is permitted to record a new registration count entry
-      allow create: if isValidId(numberId) && isValidCount(incoming());
+      allow create: if isValidCount(incoming());
       
       // Public is permitted to increment count, or admin is permitted to update counts
-      allow update: if (isValidId(numberId) && isValidCount(incoming())) || isSignedIn();
+      allow update: if isValidCount(incoming()) || isSignedIn();
       
       // Only signed-in admin is permitted to remove records
-      allow delete: if isSignedIn() && isValidId(numberId);
+      allow delete: if isSignedIn();
     }
 
     // Rules for settings collection
     match /settings/{settingId} {
       // Anyone can load, read and listen to the settings document to bootstrap & verify PIN/emails
-      allow read: if isValidId(settingId);
+      allow read: if true;
       
       // Allow settings document creation / bootstrap if it conforms to strict schema
-      allow create: if isValidId(settingId) && isValidSettings(incoming());
+      allow create: if isValidSettings(incoming());
 
       // Only authenticated admins are permitted to update PIN or edit allowlisted emails
-      allow update: if isSignedIn() && isValidId(settingId) && isValidSettings(incoming());
+      allow update: if isSignedIn() && isValidSettings(incoming());
       allow delete: if false; // Settings are permanent
+    }
+
+    // Rules for search_logs collection
+    match /search_logs/{logId} {
+      // Admins (and any authenticated user, including anonymous) can view and delete logs
+      allow get, list, delete: if request.auth != null;
+      
+      // Public users (including unauthenticated) can create search logs
+      allow create: if isValidSearchLog(incoming());
     }
   }
 }

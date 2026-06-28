@@ -75,6 +75,35 @@
         }
       },
       "required": ["pin", "allowedEmails"]
+    },
+    "SearchLog": {
+      "title": "Search Log",
+      "description": "Records every phone number search event made by users",
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "string",
+          "description": "The searched phone number"
+        },
+        "ip": {
+          "type": "string",
+          "description": "IP address of the client performing the search"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the search occurred"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date format YYYY-MM-DD for fast querying"
+        },
+        "time": {
+          "type": "string",
+          "description": "Time format HH:MM:SS"
+        }
+      },
+      "required": ["number", "ip", "timestamp", "date", "time"]
     }
   },
   "firestore": {
@@ -89,6 +118,10 @@
     "/settings/{settingId}": {
       "schema": "AdminSettings",
       "description": "Global system configurations including PIN and Gmail administrators"
+    },
+    "/search_logs/{logId}": {
+      "schema": "SearchLog",
+      "description": "Directory of all user search history"
     }
   }
 }

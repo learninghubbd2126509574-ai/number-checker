@@ -26,3 +26,13 @@ export interface RegistrationCountRecord {
   updatedAt: any; // Firestore Timestamp or ISO string
 }
 
+export interface SearchLog {
+  id: string;
+  number: string;
+  ip: string;
+  timestamp: any;
+  date: string;
+  time: string;
+}
+
+

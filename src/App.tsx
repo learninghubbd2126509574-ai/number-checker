@@ -22,6 +22,8 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  History,
+  Calendar,
 } from 'lucide-react';
 import { 
   doc, 
@@ -41,7 +43,7 @@ import {
   User 
 } from 'firebase/auth';
 import { db, auth, googleProvider, OperationType, handleFirestoreError } from './firebase';
-import { PhoneRecord, AdminSettings, RecordStatus, RecordCategory, RegistrationCountRecord } from './types';
+import { PhoneRecord, AdminSettings, RecordStatus, RecordCategory, RegistrationCountRecord, SearchLog } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -88,7 +90,7 @@ export default function App() {
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   
   // Admin form sub-tab: 'form' (add/edit), 'data' (record list) or 'counts' (registration counters)
-  const [adminActiveSubTab, setAdminActiveSubTab] = useState<'form' | 'data' | 'counts'>('form');
+  const [adminActiveSubTab, setAdminActiveSubTab] = useState<'form' | 'data' | 'counts' | 'logs'>('form');
 
   // Custom Registration Counts states
   const [registrationCounts, setRegistrationCounts] = useState<RegistrationCountRecord[]>([]);
@@ -98,6 +100,19 @@ export default function App() {
   const [editingCountVal, setEditingCountVal] = useState<number>(0);
   const [deleteCountTargetId, setDeleteCountTargetId] = useState<string | null>(null);
   const [adminCountSearchQuery, setAdminCountSearchQuery] = useState('');
+
+  // Search logs tracking states
+  const [searchLogs, setSearchLogs] = useState<SearchLog[]>([]);
+  const [selectedLogDate, setSelectedLogDate] = useState<string>(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const [showAllTimeLogs, setShowAllTimeLogs] = useState<boolean>(false);
+  const [searchLogsLoading, setSearchLogsLoading] = useState<boolean>(true);
+  const [deleteLogTargetId, setDeleteLogTargetId] = useState<string | null>(null);
 
   // Input states for Admin login
   const [enteredPin, setEnteredPin] = useState('');
@@ -320,6 +335,43 @@ export default function App() {
     return unsubscribe;
   }, [isInitializing, isAdminActive, currentUser]);
 
+  // 6. Setup Live Search Logs list on Firestore if admin logged in and Firebase auth is ready
+  useEffect(() => {
+    if (isInitializing) return;
+    if (!isAdminActive) return;
+    if (!currentUser) return;
+
+    setSearchLogsLoading(true);
+    const logsCol = collection(db, 'search_logs');
+    const unsubscribe = onSnapshot(logsCol, (snapshot) => {
+      const list: SearchLog[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          number: data.number,
+          ip: data.ip || 'Unknown',
+          timestamp: data.timestamp,
+          date: data.date || '',
+          time: data.time || ''
+        });
+      });
+      // Sort recently searched first
+      list.sort((a, b) => {
+        const aTime = a.timestamp?.seconds || 0;
+        const bTime = b.timestamp?.seconds || 0;
+        return bTime - aTime;
+      });
+      setSearchLogs(list);
+      setSearchLogsLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'search_logs');
+      setSearchLogsLoading(false);
+    });
+
+    return unsubscribe;
+  }, [isInitializing, isAdminActive, currentUser]);
+
   // Auth Action: Google Login
   const handleGoogleLogin = async () => {
     try {
@@ -458,6 +510,42 @@ export default function App() {
     }
   };
 
+  // Log public search history in Firestore
+  const logSearchQuery = async (normalizedNo: string) => {
+    try {
+      let userIp = 'Unknown';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        userIp = ipData.ip || 'Unknown';
+      } catch (ipErr) {
+        console.warn('Could not retrieve user IP:', ipErr);
+      }
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const timeStr = `${hours}:${minutes}:${seconds}`;
+
+      const logRef = doc(collection(db, 'search_logs'));
+      await setDoc(logRef, {
+        number: normalizedNo,
+        ip: userIp,
+        timestamp: serverTimestamp(),
+        date: todayStr,
+        time: timeStr
+      });
+    } catch (err) {
+      console.error('Error writing search log to Firestore:', err);
+    }
+  };
+
   // Public Search Action: Match Phone Registration
   const handlePublicSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -477,6 +565,9 @@ export default function App() {
       setIsSearching(false);
       return;
     }
+
+    // Fire and forget search logger in background
+    logSearchQuery(normalizedNo);
 
     try {
       const recordDocRef = doc(db, 'records', normalizedNo);
@@ -635,6 +726,20 @@ export default function App() {
       handleFirestoreError(err, OperationType.WRITE, `records/${deleteTargetId}`);
       showToast('ডিলিট করা সম্ভব হয়নি।', 'error');
       setDeleteTargetId(null);
+    }
+  };
+
+  // Admin CRUD Action: Delete Search Log Entry
+  const handleDeleteSearchLog = async () => {
+    if (!deleteLogTargetId) return;
+    try {
+      await deleteDoc(doc(db, 'search_logs', deleteLogTargetId));
+      showToast('অনুসন্ধান রেকর্ডটি সফলভাবে ডিলিট করা হয়েছে!', 'success');
+      setDeleteLogTargetId(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `search_logs/${deleteLogTargetId}`);
+      showToast('ডিলিট করা সম্ভব হয়নি।', 'error');
+      setDeleteLogTargetId(null);
     }
   };
 
@@ -1276,36 +1381,46 @@ export default function App() {
                   </div>
 
                   {/* Sub Task Admin Views (Toggle subtabs) */}
-                  <div className="flex bg-slate-200/50 p-1 rounded-xl border border-slate-200/60 transition-all font-sans">
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-200/50 p-1.5 rounded-xl border border-slate-200/60 transition-all font-sans">
                     <button
                       onClick={() => setAdminActiveSubTab('form')}
-                      className={`flex-1 py-3 rounded-lg font-black text-[11px] transition-all flex items-center justify-center gap-1 outline-none cursor-pointer ${
+                      className={`py-2 rounded-lg font-black text-[10.5px] transition-all flex items-center justify-center gap-1 outline-none cursor-pointer ${
                         adminActiveSubTab === 'form'
                           ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50'
                           : 'text-slate-500 hover:text-slate-800 bg-transparent'
                       }`}
                     >
-                      <Plus className="w-3 h-3 shrink-0 text-slate-500" /> নম্বর এন্ট্রি
+                      <Plus className="w-3.5 h-3.5 shrink-0 text-slate-500" /> নম্বর এন্ট্রি
                     </button>
                     <button
                       onClick={() => setAdminActiveSubTab('data')}
-                      className={`flex-1 py-3 rounded-lg font-black text-[11px] transition-all flex items-center justify-center gap-1 outline-none cursor-pointer ${
+                      className={`py-2 rounded-lg font-black text-[10.5px] transition-all flex items-center justify-center gap-1 outline-none cursor-pointer ${
                         adminActiveSubTab === 'data'
                           ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50'
                           : 'text-slate-500 hover:text-slate-800 bg-transparent'
                       }`}
                     >
-                      <Database className="w-3 h-3 shrink-0 text-slate-500" /> ডাটা তালিকা ({records.length})
+                      <Database className="w-3.5 h-3.5 shrink-0 text-slate-500" /> ডাটা তালিকা ({records.length})
                     </button>
                     <button
                       onClick={() => setAdminActiveSubTab('counts')}
-                      className={`flex-1 py-3 rounded-lg font-black text-[11px] transition-all flex items-center justify-center gap-1 outline-none cursor-pointer ${
+                      className={`py-2 rounded-lg font-black text-[10.5px] transition-all flex items-center justify-center gap-1 outline-none cursor-pointer ${
                         adminActiveSubTab === 'counts'
                           ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50'
                           : 'text-slate-500 hover:text-slate-800 bg-transparent'
                       }`}
                     >
-                      <RefreshCw className="w-3 h-3 shrink-0 text-slate-500" /> কাউন্টারস ({registrationCounts.length})
+                      <RefreshCw className="w-3.5 h-3.5 shrink-0 text-slate-500" /> কাউন্টারস ({registrationCounts.length})
+                    </button>
+                    <button
+                      onClick={() => setAdminActiveSubTab('logs')}
+                      className={`py-2 rounded-lg font-black text-[10.5px] transition-all flex items-center justify-center gap-1 outline-none cursor-pointer ${
+                        adminActiveSubTab === 'logs'
+                          ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50'
+                          : 'text-slate-500 hover:text-slate-800 bg-transparent'
+                      }`}
+                    >
+                      <History className="w-3.5 h-3.5 shrink-0 text-slate-500" /> সার্চ হিস্ট্রি ({searchLogs.length})
                     </button>
                   </div>
 
@@ -1669,6 +1784,166 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* View 4: Public Search History Tracking logs */}
+                  {adminActiveSubTab === 'logs' && (() => {
+                    // Filter logs by date or show all-time logs
+                    const filteredLogs = showAllTimeLogs 
+                      ? searchLogs 
+                      : searchLogs.filter(log => log.date === selectedLogDate);
+
+                    return (
+                      <div className="space-y-4">
+                        {/* Summary & Date Selection Header */}
+                        <div className="bg-white border border-slate-200/85 rounded-2xl p-4 shadow-sm space-y-3.5 text-left">
+                          <h4 className="text-xs font-black text-slate-800 flex items-center gap-2 font-sans select-none pb-2 border-b border-slate-100">
+                            <History className="w-4 h-4 text-emerald-500 shrink-0" /> অনুসন্ধান ইতিহাস ও ট্র্যাকিং
+                          </h4>
+
+                          {/* Quick Stats: All count vs Daily count */}
+                          <div className="grid grid-cols-2 gap-2 font-sans">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAllTimeLogs(true);
+                              }}
+                              className={`p-3 rounded-xl border flex flex-col justify-center items-center gap-1 transition-all outline-none cursor-pointer ${
+                                showAllTimeLogs
+                                  ? 'bg-indigo-50/70 border-indigo-200 text-indigo-900 shadow-sm'
+                                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <span className="text-[10px] font-bold text-slate-500">টোটাল সার্চ (All Count)</span>
+                              <span className="text-lg font-black">{searchLogs.length} বার</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAllTimeLogs(false);
+                              }}
+                              className={`p-3 rounded-xl border flex flex-col justify-center items-center gap-1 transition-all outline-none cursor-pointer ${
+                                !showAllTimeLogs
+                                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 shadow-sm'
+                                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <span className="text-[10px] font-bold text-slate-500">তারিখের সার্চ (Daily Count)</span>
+                              <span className="text-lg font-black">
+                                {searchLogs.filter(log => log.date === selectedLogDate).length} বার
+                              </span>
+                            </button>
+                          </div>
+
+                          {/* Calendar & Today/Reset Options */}
+                          <div className="space-y-2 pt-2">
+                            <label className="block text-[11px] font-extrabold text-slate-500 mb-1 leading-none">
+                              তারিখ নির্বাচন করুন (Select Date):
+                            </label>
+                            
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                                  <Calendar className="w-3.5 h-3.5" />
+                                </span>
+                                <input
+                                  type="date"
+                                  className="w-full bg-slate-50 text-slate-800 text-xs py-2.5 pl-10 pr-4 rounded-xl border border-slate-200 outline-none focus:border-emerald-500 focus:bg-white transition-all font-sans font-bold"
+                                  value={selectedLogDate}
+                                  onChange={(e) => {
+                                    setSelectedLogDate(e.target.value);
+                                    setShowAllTimeLogs(false);
+                                  }}
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const d = new Date();
+                                  const year = d.getFullYear();
+                                  const month = String(d.getMonth() + 1).padStart(2, '0');
+                                  const day = String(d.getDate()).padStart(2, '0');
+                                  setSelectedLogDate(`${year}-${month}-${day}`);
+                                  setShowAllTimeLogs(false);
+                                  showToast('আজকের তারিখ রিসেট করা হয়েছে!');
+                                }}
+                                className="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3.5 rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center outline-none cursor-pointer"
+                              >
+                                আজকের তারিখ (Today)
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Search History Records List */}
+                        <div className="bg-white border border-slate-200/85 rounded-2xl p-4 shadow-sm space-y-3 text-left">
+                          <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h4 className="text-xs font-black text-slate-800">
+                              {showAllTimeLogs 
+                                ? 'টোটাল অনুসন্ধান হিস্ট্রি তালিকা' 
+                                : `${selectedLogDate} তারিখের অনুসন্ধান তালিকা`}
+                            </h4>
+                            <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.75 rounded-md">
+                              {filteredLogs.length}টি তথ্য
+                            </span>
+                          </div>
+
+                          <div className="space-y-2.5 max-h-[380px] overflow-y-auto no-scrollbar">
+                            {searchLogsLoading ? (
+                              <div className="text-center py-8 text-xs text-slate-400 font-bold font-sans animate-pulse">
+                                তথ্য লোড হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...
+                              </div>
+                            ) : filteredLogs.length === 0 ? (
+                              <div className="text-center py-8 text-xs text-slate-400 font-bold font-sans">
+                                {showAllTimeLogs 
+                                  ? 'কোনো অনুসন্ধানের তথ্য পাওয়া যায়নি!' 
+                                  : 'এই তারিখে কোনো ফোন নম্বর অনুসন্ধান করা হয়নি।'}
+                              </div>
+                            ) : (
+                              filteredLogs.map((log) => {
+                                // Format date/time nicely
+                                const [year, month, day] = log.date.split('-');
+                                const formattedDate = `${day}/${month}/${year}`;
+
+                                return (
+                                  <div 
+                                    key={log.id} 
+                                    className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-[#fafbfc] hover:border-slate-200 hover:bg-white transition-all gap-2"
+                                  >
+                                    <div className="space-y-1 overflow-hidden">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs font-mono font-bold text-slate-800 select-all tracking-wide">
+                                          {log.number}
+                                        </span>
+                                        <span className="text-[9.5px] font-mono bg-indigo-50/80 text-indigo-700 font-semibold px-1.5 py-0.25 rounded-md border border-indigo-100/50">
+                                          IP: {log.ip}
+                                        </span>
+                                      </div>
+                                      <div className="text-[9.5px] text-slate-400 font-sans flex items-center gap-1 font-semibold">
+                                        <span>📅 {formattedDate}</span>
+                                        <span>•</span>
+                                        <span>⏰ {log.time}</span>
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setDeleteLogTargetId(log.id)}
+                                      className="w-7 h-7 rounded-lg bg-rose-50 border border-rose-150 text-rose-600 hover:bg-rose-150 flex items-center justify-center transition-all shrink-0 cursor-pointer outline-none"
+                                      title="ডিলিট করুন"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                    </button>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                 </div>
               )}
 
@@ -1817,6 +2092,65 @@ export default function App() {
                   <button
                     type="button"
                     onClick={handleDeleteRegistrationCount}
+                    className="flex-1 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl outline-none shadow-md shadow-rose-600/20 active:scale-95 transition-all cursor-pointer"
+                  >
+                    হ্যাঁ, নিশ্চিত ডিলিট
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Custom Confirmation Dialog for Search Log Record Deletion */}
+        <AnimatePresence>
+          {deleteLogTargetId && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-5 z-50 select-none cursor-default"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 15, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                exit={{ scale: 0.9, y: 15, opacity: 0 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                className="bg-white w-full max-w-[340px] rounded-2xl shadow-[0_24px_50px_rgba(0,0,0,0.22)] border border-slate-100 overflow-hidden"
+              >
+                {/* Visual Icon Alert Header */}
+                <div className="bg-rose-50 p-6 flex flex-col items-center justify-center border-b border-rose-100">
+                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-500 mb-3 animate-bounce">
+                    <Trash2 className="w-6 h-6 text-rose-600" />
+                  </div>
+                  <h3 className="text-sm font-extrabold text-slate-800 font-sans tracking-wide">অনুসন্ধান রেকর্ড ডিলিট</h3>
+                </div>
+
+                {/* Body Content Description */}
+                <div className="p-5 text-center">
+                  <p className="text-xs text-slate-500 leading-relaxed font-sans mb-1">
+                    আপনি কি নিশ্চিত যে এই অনুসন্ধানের বিবরণটি ডিলিট করতে চান?
+                  </p>
+                  <p className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg inline-block border border-slate-200 select-all mt-2">
+                    Log ID: {deleteLogTargetId}
+                  </p>
+                  <p className="text-[10px] text-rose-500 font-bold font-sans mt-2">
+                    ⚠️ সতর্কীকরণ: এই পরিবর্তনটি স্থায়ী এবং এটি পুনরুদ্ধার করা যাবে না।
+                  </p>
+                </div>
+
+                {/* Dialog Bottom Navigation Button Controls */}
+                <div className="bg-slate-50 px-4 py-3.5 flex gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteLogTargetId(null)}
+                    className="flex-1 py-2.5 px-3 bg-white border border-slate-250 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl outline-none transition-all cursor-pointer"
+                  >
+                    না, ফেরত যান
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteSearchLog}
                     className="flex-1 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl outline-none shadow-md shadow-rose-600/20 active:scale-95 transition-all cursor-pointer"
                   >
                     হ্যাঁ, নিশ্চিত ডিলিট
